@@ -183,9 +183,30 @@
   /* ---------- Shared page wrap ---------- */
   .pg-wrap{ max-width:1120px; margin:0 auto; padding: 48px 32px 80px; }
   .pg-head{ margin-bottom:34px; }
+  .pg-head-row{ display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap; }
   .pg-head .eyebrow{ font-size:12px; letter-spacing:0.18em; text-transform:uppercase; color:var(--gold); font-weight:700; margin-bottom:8px; display:block; }
   .pg-head h2{ font-size: clamp(26px,3.4vw,34px); margin:0 0 8px; color:var(--primary-dark);}
   .pg-head p{ color:var(--ink-soft); font-size:14.5px; max-width:64ch; margin:0; }
+  .export-btn{
+    display:inline-flex; align-items:center; gap:8px; white-space:nowrap;
+    background: var(--primary); color:#fff; font-weight:700; font-size:13.5px;
+    padding:11px 18px; border-radius:10px; border:none; cursor:pointer;
+    transition: background .18s ease, transform .15s ease;
+  }
+  .export-btn:hover{ background: var(--primary-dark); }
+  .export-btn:active{ transform: scale(0.98); }
+
+  .recent-wrap{ max-width:1040px; margin:0 auto; padding: 0 32px 72px; position:relative; z-index:2; }
+  .recent-head{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .recent-head h3{ margin:0; color:var(--primary-dark); font-size:19px; }
+  .recent-list{ display:grid; grid-template-columns: repeat(auto-fill, minmax(230px,1fr)); gap:14px; margin-bottom:18px; }
+  .recent-list .empty{ grid-column: 1 / -1; }
+  .cta-ghost{
+    display:inline-flex; align-items:center; gap:8px; background:transparent; border:1.5px solid var(--line);
+    color:var(--primary-dark); font-weight:700; font-size:13.5px; padding:11px 20px; border-radius:999px;
+    cursor:pointer; transition: border-color .15s ease, background .15s ease;
+  }
+  .cta-ghost:hover{ border-color: var(--primary); background: var(--primary-tint); }
 
   .pg-grid{ display:grid; grid-template-columns: 1fr 1.15fr; gap:28px; align-items:start; }
   @media (max-width: 880px){ .pg-grid{ grid-template-columns:1fr; } .info-strip{ grid-template-columns:1fr; } .navbar{ justify-content:flex-start; } }
@@ -353,10 +374,6 @@
       <button id="nav-perangkat" onclick="showView('perangkat')">Perangkat Guru</button>
       <button id="nav-verifikasi" onclick="showView('verifikasi')" style="display:none;">Verifikasi<span class="badge-count" id="pending-badge" style="display:none;">0</span></button>
     </div>
-    <div class="role-chip guru" id="role-chip" onclick="toggleRoleDropdown(event,'nav')">
-      <span class="dot"></span>
-      <span class="rl" id="role-label">Guru<small>Ketuk untuk ganti peran</small></span>
-    </div>
   </div>
 </nav>
 
@@ -393,6 +410,18 @@
       <h3>Tampil Realtime</h3>
       <p>Begitu diverifikasi, data langsung muncul di daftar tanpa perlu memuat ulang halaman.</p>
     </div>
+  </div>
+
+  <div class="recent-wrap">
+    <div class="recent-head">
+      <h3>Guru Terbaru Terverifikasi</h3>
+      <span class="count-pill" id="recent-count-pill">0 guru</span>
+    </div>
+    <div class="recent-list" id="recent-list"></div>
+    <button class="cta-ghost" onclick="showView('perangkat')">
+      Lihat Daftar Lengkap
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
   </div>
 </section>
 
@@ -473,11 +502,18 @@
 <!-- ================= VERIFIKASI (khusus Verifikator/Admin) ================= -->
 <section id="view-verifikasi" class="view">
   <div class="pg-wrap">
-    <div class="pg-head">
-      <span class="eyebrow">Verifikasi Data</span>
-      <h2>Antrean Persetujuan</h2>
-      <p>Halaman ini hanya untuk Administrator Utama dan Verifikator (Kepala Madrasah/Waka Kurikulum). Setujui data yang benar, atau tolak data yang perlu diperbaiki guru.</p>
+    <div class="pg-head-row">
+      <div class="pg-head" style="margin-bottom:0;">
+        <span class="eyebrow">Verifikasi Data</span>
+        <h2>Antrean Persetujuan</h2>
+        <p>Halaman ini hanya untuk Administrator Utama dan Verifikator (Kepala Madrasah/Waka Kurikulum). Setujui data yang benar, atau tolak data yang perlu diperbaiki guru.</p>
+      </div>
+      <button class="export-btn" onclick="exportReportCSV()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Unduh Laporan (.csv)
+      </button>
     </div>
+    <div style="height:34px;"></div>
 
     <div class="pg-grid">
       <div class="card">
@@ -659,24 +695,18 @@
     const dd = document.getElementById('role-dropdown');
     if(!dd.classList.contains('show')) return;
     if(dd.contains(e.target)) return;
-    if(e.target.closest('#gate-trigger') || e.target.closest('#role-chip')) return;
+    if(e.target.closest('#gate-trigger')) return;
     closeRoleDropdown();
   });
   document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeRoleDropdown(); });
   window.addEventListener('resize', () => {
     const dd = document.getElementById('role-dropdown');
     if(dd.classList.contains('show')){
-      const trigger = dropdownSource === 'gate' ? document.getElementById('gate-trigger') : document.getElementById('role-chip');
-      positionDropdown(trigger);
+      positionDropdown(document.getElementById('gate-trigger'));
     }
   });
 
   function applyRoleUI(){
-    const chip = document.getElementById('role-chip');
-    chip.className = 'role-chip ' + currentRole;
-    const label = document.getElementById('role-label');
-    label.innerHTML = roleDisplayName(currentRole) + '<small>Ketuk untuk ganti peran</small>';
-
     const canVerify = currentRole === 'verifikator' || currentRole === 'admin';
     document.getElementById('nav-verifikasi').style.display = canVerify ? '' : 'none';
     if(!canVerify && document.getElementById('view-verifikasi').classList.contains('active')){
@@ -749,6 +779,7 @@
   function statusOf(g){ return g.status || 'verified'; } // backward-compatible: old records have no status
 
   function render(){
+    renderBerandaPreview();
     const q = document.getElementById('search-input').value.trim().toLowerCase();
     const verified = allGuru.filter(g => statusOf(g) === 'verified');
     const filtered = verified.filter(g =>
@@ -786,6 +817,70 @@
         </div>
       `).join('');
   }
+
+  function renderBerandaPreview(){
+    const countEl = document.getElementById('recent-count-pill');
+    const listEl = document.getElementById('recent-list');
+    if(!countEl || !listEl) return;
+
+    const verified = allGuru
+      .filter(g => statusOf(g) === 'verified')
+      .sort((a,b) => new Date(b.verifiedAt || b.createdAt || 0) - new Date(a.verifiedAt || a.createdAt || 0));
+
+    countEl.textContent = verified.length + ' guru';
+
+    const top = verified.slice(0, 6);
+    if(top.length === 0){
+      listEl.innerHTML = `<div class="empty">Belum ada guru yang terverifikasi. Data yang disetujui Verifikator akan langsung tampil di sini.</div>`;
+      return;
+    }
+    listEl.innerHTML = top.map(g => `
+      <div class="g-item">
+        <div class="g-top">
+          <div class="g-name">${escapeHtml(g.nama)}</div>
+          <div class="g-jabatan">${escapeHtml(g.jabatan)}</div>
+        </div>
+        <div class="g-meta"><span><b>Mapel:</b> ${escapeHtml(g.mapel)}</span></div>
+        <a class="g-link" href="${escapeHtml(normalizeLink(g.link))}" target="_blank" rel="noopener noreferrer">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 15l6-6M9 9h6v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Lihat berkas
+        </a>
+      </div>
+    `).join('');
+  }
+
+  function csvEscape(val){
+    const s = String(val ?? '');
+    if(/[",\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+    return s;
+  }
+  function statusLabel(s){ return s==='pending' ? 'Menunggu Verifikasi' : s==='rejected' ? 'Ditolak' : 'Terverifikasi'; }
+
+  function exportReportCSV(){
+    const headers = ['Nama Guru','NIP','Jabatan','Mapel','Tautan Berkas','Status','Dikirim Pada','Diverifikasi/Ditolak Oleh','Diverifikasi/Ditolak Pada','Alasan Penolakan'];
+    const rows = [headers];
+    allGuru
+      .slice()
+      .sort((a,b)=> new Date(a.createdAt||0) - new Date(b.createdAt||0))
+      .forEach(g => {
+        rows.push([
+          g.nama, g.nip, g.jabatan, g.mapel, normalizeLink(g.link),
+          statusLabel(statusOf(g)), g.createdAt || '', g.verifiedBy || '', g.verifiedAt || '', g.rejectReason || ''
+        ]);
+      });
+    const csv = rows.map(r => r.map(csvEscape).join(',')).join('\r\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'laporan-guru-' + new Date().toISOString().slice(0,10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Laporan CSV berhasil diunduh.');
+  }
+  window.exportReportCSV = exportReportCSV;
 
   function renderPending(){
     const canVerify = currentRole === 'verifikator' || currentRole === 'admin';
