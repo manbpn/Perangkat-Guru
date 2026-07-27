@@ -737,33 +737,34 @@
     toastTimer = setTimeout(()=> t.classList.remove('show'), 2600);
   }
 
-  // ---------- storage helpers ----------
-  const INDEX_KEY = 'guru:index';
+  // ---------- backend API (Google Apps Script + Google Sheet) ----------
+  const API_URL = 'https://script.google.com/macros/s/AKfycbwFq69Kt4h4JllF43CN8ysiiYWftGh83MRnlx-_RMSiikYFYdaJZ_WBAdXsErz9TBkobQ/exec';
+  let hasLoadedOnce = false;
 
-  async function getIndex(){
+  async function apiGet(){
     try{
-      const res = await window.storage.get(INDEX_KEY, true);
-      return res && res.value ? JSON.parse(res.value) : [];
-    }catch(e){ return []; }
+      const res = await fetch(API_URL, { method: 'GET' });
+      const json = await res.json();
+      return (json && json.ok && Array.isArray(json.data)) ? json.data : [];
+    }catch(e){
+      console.error('Gagal memuat data dari server', e);
+      return null;
+    }
   }
-  async function setIndex(ids){
-    try{ await window.storage.set(INDEX_KEY, JSON.stringify(ids), true); }
-    catch(e){ console.error('gagal menyimpan indeks', e); }
-  }
-  async function getGuru(id){
+
+  async function apiPost(payload){
     try{
-      const res = await window.storage.get('guru:'+id, true);
-      return res && res.value ? JSON.parse(res.value) : null;
-    }catch(e){ return null; }
-  }
-  async function setGuru(id, data){
-    try{ await window.storage.set('guru:'+id, JSON.stringify(data), true); }
-    catch(e){ console.error('gagal menyimpan data guru', e); }
-  }
-  async function deleteGuru(id){
-    try{ await window.storage.delete('guru:'+id, true); }catch(e){}
-    const ids = (await getIndex()).filter(x=>x!==id);
-    await setIndex(ids);
+      // Content-Type text/plain menghindari CORS preflight yang tidak didukung Apps Script Web App
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    }catch(e){
+      console.error('Gagal mengirim data ke server', e);
+      return { ok:false };
+    }
   }
 
   // ---------- rendering ----------
@@ -959,8 +960,13 @@
   async function handleDelete(id){
     allGuru = allGuru.filter(g => g.id !== id);
     render();
-    await deleteGuru(id);
-    showToast('Data guru dihapus.');
+    const result = await apiPost({ action: 'delete', id });
+    if(result && result.ok){
+      showToast('Data guru dihapus.');
+    } else {
+      showToast('Gagal menghapus di server. Coba lagi.');
+      loadAll();
+    }
   }
   window.handleDelete = handleDelete;
 
@@ -970,10 +976,15 @@
     g.status = 'verified';
     g.verifiedBy = currentName || roleDisplayName(currentRole);
     g.verifiedAt = new Date().toISOString();
-    delete g.rejectReason;
+    g.rejectReason = '';
     renderPending(); render();
-    await setGuru(id, g);
-    showToast(`Data ${g.nama} disetujui dan tampil di daftar publik.`);
+    const result = await apiPost({ action:'update', id, status:g.status, verifiedBy:g.verifiedBy, verifiedAt:g.verifiedAt, rejectReason:'' });
+    if(result && result.ok){
+      showToast(`Data ${g.nama} disetujui dan tampil di daftar publik.`);
+    } else {
+      showToast('Gagal menyimpan persetujuan ke server. Coba lagi.');
+      loadAll();
+    }
   }
   window.handleApprove = handleApprove;
 
@@ -986,19 +997,24 @@
     g.verifiedAt = new Date().toISOString();
     g.rejectReason = reason || '';
     renderPending(); render();
-    await setGuru(id, g);
-    showToast(`Data ${g.nama} ditolak.`);
+    const result = await apiPost({ action:'update', id, status:g.status, verifiedBy:g.verifiedBy, verifiedAt:g.verifiedAt, rejectReason:g.rejectReason });
+    if(result && result.ok){
+      showToast(`Data ${g.nama} ditolak.`);
+    } else {
+      showToast('Gagal menyimpan penolakan ke server. Coba lagi.');
+      loadAll();
+    }
   }
   window.handleReject = handleReject;
 
   async function loadAll(){
-    const ids = await getIndex();
-    const results = [];
-    for(const id of ids){
-      const g = await getGuru(id);
-      if(g) results.push(g);
+    const data = await apiGet();
+    if(data === null){
+      if(!hasLoadedOnce) showToast('Gagal memuat data dari server. Periksa koneksi internet Anda.');
+      return;
     }
-    allGuru = results;
+    hasLoadedOnce = true;
+    allGuru = data;
     render();
     renderPending();
   }
@@ -1036,14 +1052,15 @@
     const record = { id, ...values, status:'pending', createdAt: new Date().toISOString() };
 
     try{
-      const ids = await getIndex();
-      ids.push(id);
-      await setIndex(ids);
-      await setGuru(id, record);
-      allGuru.push(record);
-      render(); renderPending();
-      document.getElementById('guru-form').reset();
-      showToast('Data terkirim. Menunggu verifikasi Verifikator.');
+      const result = await apiPost({ action:'create', ...record });
+      if(result && result.ok){
+        allGuru.push(record);
+        render(); renderPending();
+        document.getElementById('guru-form').reset();
+        showToast('Data terkirim. Menunggu verifikasi Verifikator.');
+      } else {
+        showToast('Gagal menyimpan data ke server. Silakan coba lagi.');
+      }
     }catch(err){
       showToast('Gagal menyimpan data. Silakan coba lagi.');
       console.error(err);
