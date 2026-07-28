@@ -274,6 +274,11 @@
     color:var(--primary); font-weight:600; text-decoration:none; border-bottom:1px solid transparent;
   }
   .g-item a.g-link:hover{ border-color: var(--primary); }
+  .link-locked{
+    display:inline-flex; align-items:center; gap:6px; margin-top:10px; font-size:12px;
+    color: var(--ink-soft); font-style:italic;
+  }
+  .link-locked svg{ flex:0 0 auto; }
   .g-item .g-del{
     position:absolute; top:12px; right:14px; background:none; border:none; cursor:pointer;
     color:var(--red); opacity:0; transition:opacity .15s ease; font-size:12px;
@@ -373,6 +378,7 @@
       <button id="nav-beranda" class="active" onclick="showView('beranda')">Beranda</button>
       <button id="nav-perangkat" onclick="showView('perangkat')">Perangkat Guru</button>
       <button id="nav-verifikasi" onclick="showView('verifikasi')" style="display:none;">Verifikasi<span class="badge-count" id="pending-badge" style="display:none;">0</span></button>
+      <button id="nav-akun" onclick="showView('akun')" style="display:none;">Kelola Akun</button>
     </div>
   </div>
 </nav>
@@ -534,6 +540,50 @@
   </div>
 </section>
 
+<!-- ================= KELOLA AKUN (khusus Admin) ================= -->
+<section id="view-akun" class="view">
+  <div class="pg-wrap">
+    <div class="pg-head">
+      <span class="eyebrow">Kelola Akun</span>
+      <h2>Akun Verifikator &amp; Riwayat Login</h2>
+      <p>Halaman ini hanya untuk Administrator Utama. Tambahkan akun Verifikator, atur ulang kode akses, nonaktifkan akun, dan pantau riwayat siapa saja yang masuk ke ruang ini.</p>
+    </div>
+
+    <div class="pg-grid">
+      <div class="card">
+        <h3>Tambah Akun Verifikator</h3>
+        <p class="sub">Sebaiknya setiap Kepala Madrasah/Waka Kurikulum punya kode akses sendiri.</p>
+
+        <div class="field">
+          <label for="new-verif-nama">Nama Verifikator</label>
+          <input id="new-verif-nama" type="text" placeholder="Contoh: Hj. Siti Aminah, M.Pd. (Waka Kurikulum)">
+        </div>
+        <div class="field">
+          <label for="new-verif-kode">Kode Akses</label>
+          <input id="new-verif-kode" type="text" placeholder="Buat kode akses, contoh: waka-siti-01">
+        </div>
+        <button class="submit-btn" onclick="submitNewVerifikator()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
+          Tambah Akun Verifikator
+        </button>
+
+        <div class="list-head" style="margin-top:26px;">
+          <h3>Daftar Akun Verifikator</h3>
+          <span class="count-pill" id="verif-count-pill">0 akun</span>
+        </div>
+        <div class="roster" id="verif-roster"></div>
+      </div>
+
+      <div class="card">
+        <div class="list-head">
+          <h3>Riwayat Login</h3>
+        </div>
+        <div class="roster" id="login-roster"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <footer>
   <p>Seluruh data dikelola oleh <b>@tim_IT MAN Balikpapan</b></p>
 </footer>
@@ -660,15 +710,64 @@
     document.getElementById('rd-name').focus();
   });
 
-  function submitRoleCode(){
+  function showRdError(msg){
+    const err = document.getElementById('rd-err');
+    err.textContent = msg;
+    err.classList.add('show');
+  }
+
+  async function submitRoleCode(){
     if(!pendingRoleChoice) return;
     const name = document.getElementById('rd-name').value.trim();
     const code = document.getElementById('rd-access').value.trim();
-    if(code !== ACCESS_CODES[pendingRoleChoice]){
-      document.getElementById('rd-err').classList.add('show');
+    const btn = document.getElementById('rd-submit');
+    document.getElementById('rd-err').classList.remove('show');
+
+    if(pendingRoleChoice === 'admin'){
+      if(code !== ACCESS_CODES.admin){
+        showRdError('Kode akses salah. Silakan coba lagi.');
+        return;
+      }
+      const finalName = name || 'Administrator Utama';
+      btn.disabled = true;
+      apiPost({ action:'login', peran:'admin', nama: finalName }); // catat riwayat login, tidak perlu ditunggu
+      finalizeRole('admin', finalName);
+      btn.disabled = false;
       return;
     }
-    finalizeRole(pendingRoleChoice, name || roleDisplayName(pendingRoleChoice));
+
+    // pendingRoleChoice === 'verifikator': cocokkan dengan akun yang dibuat Admin
+    btn.disabled = true;
+    btn.textContent = 'Memeriksa...';
+    const accounts = await apiGetType('verifikator');
+    btn.disabled = false;
+    btn.textContent = 'Masuk';
+
+    if(accounts === null){
+      showRdError('Gagal menghubungi server. Periksa koneksi internet.');
+      return;
+    }
+
+    const match = accounts.find(a =>
+      (a.kode || '').toString().trim() === code &&
+      ((a.status || '').toString().trim().toLowerCase() || 'aktif') === 'aktif'
+    );
+
+    if(match){
+      apiPost({ action:'login', peran:'verifikator', nama: match.nama });
+      finalizeRole('verifikator', match.nama);
+      return;
+    }
+
+    // Fallback ke kode bersama lama, untuk masa transisi sebelum akun individual dibuat
+    if(code === ACCESS_CODES.verifikator){
+      const fallbackName = name || 'Verifikator';
+      apiPost({ action:'login', peran:'verifikator', nama: fallbackName });
+      finalizeRole('verifikator', fallbackName);
+      return;
+    }
+
+    showRdError('Kode akses salah atau akun tidak aktif.');
   }
   window.submitRoleCode = submitRoleCode;
 
@@ -708,22 +807,29 @@
 
   function applyRoleUI(){
     const canVerify = currentRole === 'verifikator' || currentRole === 'admin';
+    const isAdmin = currentRole === 'admin';
     document.getElementById('nav-verifikasi').style.display = canVerify ? '' : 'none';
+    document.getElementById('nav-akun').style.display = isAdmin ? '' : 'none';
     if(!canVerify && document.getElementById('view-verifikasi').classList.contains('active')){
+      showView('perangkat');
+    }
+    if(!isAdmin && document.getElementById('view-akun').classList.contains('active')){
       showView('perangkat');
     }
     render();
     renderPending();
+    if(isAdmin) loadAdminExtras();
   }
 
   // ---------- nav ----------
   function showView(name){
-    ['beranda','perangkat','verifikasi'].forEach(v=>{
+    ['beranda','perangkat','verifikasi','akun'].forEach(v=>{
       document.getElementById('view-'+v).classList.toggle('active', v===name);
       const btn = document.getElementById('nav-'+v);
       if(btn) btn.classList.toggle('active', v===name);
     });
     window.scrollTo({top:0, behavior:'smooth'});
+    if(name === 'akun' && currentRole === 'admin') loadAdminExtras();
   }
   window.showView = showView;
 
@@ -768,6 +874,18 @@
     }
   }
 
+  async function apiGetType(type){
+    try{
+      const url = API_URL + '?type=' + encodeURIComponent(type) + '&_t=' + Date.now();
+      const res = await fetch(url, { method:'GET', cache:'no-store' });
+      const json = await res.json();
+      return (json && json.ok && Array.isArray(json.data)) ? json.data : [];
+    }catch(e){
+      console.error('Gagal memuat', type, e);
+      return null;
+    }
+  }
+
   // ---------- rendering ----------
   let allGuru = [];
 
@@ -782,6 +900,7 @@
     const s = (g.status || '').toString().trim().toLowerCase();
     return s || 'verified'; // backward-compatible: empty/old records default to verified
   }
+  function canSeeLink(){ return currentRole === 'verifikator' || currentRole === 'admin'; }
 
   function render(){
     renderBerandaPreview();
@@ -814,10 +933,15 @@
             <span><b>NIP:</b> ${escapeHtml(g.nip)}</span>
             <span><b>Mapel:</b> ${escapeHtml(g.mapel)}</span>
           </div>
+          ${canSeeLink() ? `
           <a class="g-link" href="${escapeHtml(normalizeLink(g.link))}" target="_blank" rel="noopener noreferrer">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 15l6-6M9 9h6v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Lihat berkas perangkat pembelajaran
-          </a>
+          </a>` : `
+          <div class="link-locked">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="9" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.6"/></svg>
+            Tautan berkas hanya dapat dilihat Verifikator/Admin
+          </div>`}
           ${g.verifiedBy ? `<div class="verinfo">Diverifikasi oleh ${escapeHtml(g.verifiedBy)}</div>` : ''}
         </div>
       `).join('');
@@ -846,10 +970,15 @@
           <div class="g-jabatan">${escapeHtml(g.jabatan)}</div>
         </div>
         <div class="g-meta"><span><b>Mapel:</b> ${escapeHtml(g.mapel)}</span></div>
+        ${canSeeLink() ? `
         <a class="g-link" href="${escapeHtml(normalizeLink(g.link))}" target="_blank" rel="noopener noreferrer">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 15l6-6M9 9h6v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           Lihat berkas
-        </a>
+        </a>` : `
+        <div class="link-locked">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="9" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.6"/></svg>
+          Berkas hanya terlihat Verifikator/Admin
+        </div>`}
       </div>
     `).join('');
   }
@@ -886,6 +1015,114 @@
     showToast('Laporan CSV berhasil diunduh.');
   }
   window.exportReportCSV = exportReportCSV;
+
+  // ---------- Kelola Akun (khusus Admin): akun Verifikator & riwayat login ----------
+  let verifikatorAccounts = [];
+  let loginHistory = [];
+
+  async function loadAdminExtras(){
+    if(currentRole !== 'admin') return;
+    const [accounts, history] = await Promise.all([
+      apiGetType('verifikator'),
+      apiGetType('loginlog')
+    ]);
+    verifikatorAccounts = accounts || [];
+    loginHistory = (history || []).slice().sort((a,b)=> new Date(b.waktu||0) - new Date(a.waktu||0));
+    renderAkun();
+  }
+
+  function renderAkun(){
+    const countEl = document.getElementById('verif-count-pill');
+    const roster = document.getElementById('verif-roster');
+    if(countEl) countEl.textContent = verifikatorAccounts.length + ' akun';
+
+    if(roster){
+      if(verifikatorAccounts.length === 0){
+        roster.innerHTML = `<div class="empty">Belum ada akun Verifikator. Tambahkan lewat form di atas.</div>`;
+      } else {
+        roster.innerHTML = verifikatorAccounts.map(v => {
+          const status = ((v.status||'').toString().trim().toLowerCase()) || 'aktif';
+          const nonaktif = status === 'nonaktif';
+          return `
+            <div class="g-item ${nonaktif ? 'rejected' : ''}">
+              <div class="g-top">
+                <div class="g-name">${escapeHtml(v.nama)}</div>
+                <span class="status-tag ${nonaktif ? 'rejected' : 'verified'}">${nonaktif ? 'Nonaktif' : 'Aktif'}</span>
+              </div>
+              <div class="g-meta"><span><b>Dibuat:</b> ${escapeHtml(v.createdAt || '-')}</span></div>
+              <div class="g-actions">
+                <button class="btn-approve" onclick="resetVerifikatorKode('${v.id}')">Reset Kode</button>
+                <button class="btn-reject" onclick="toggleVerifikatorStatus('${v.id}','${status}')">${nonaktif ? 'Aktifkan' : 'Nonaktifkan'}</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    const loginRoster = document.getElementById('login-roster');
+    if(loginRoster){
+      if(loginHistory.length === 0){
+        loginRoster.innerHTML = `<div class="empty">Belum ada riwayat login.</div>`;
+      } else {
+        loginRoster.innerHTML = loginHistory.slice(0, 40).map(h => `
+          <div class="g-item">
+            <div class="g-top">
+              <div class="g-name">${escapeHtml(h.nama || '-')}</div>
+              <span class="status-tag ${h.peran === 'admin' ? 'verified' : 'pending'}">${escapeHtml(roleDisplayName(h.peran))}</span>
+            </div>
+            <div class="g-meta"><span><b>Waktu:</b> ${escapeHtml(h.waktu || '-')}</span></div>
+          </div>
+        `).join('');
+      }
+    }
+  }
+
+  async function submitNewVerifikator(){
+    const nama = document.getElementById('new-verif-nama').value.trim();
+    const kode = document.getElementById('new-verif-kode').value.trim();
+    if(!nama || !kode){
+      showToast('Isi nama dan kode akses terlebih dahulu.');
+      return;
+    }
+    const id = 'v' + Date.now() + Math.random().toString(36).slice(2,7);
+    const result = await apiPost({ action:'createVerifikator', id, nama, kode });
+    if(result && result.ok){
+      document.getElementById('new-verif-nama').value = '';
+      document.getElementById('new-verif-kode').value = '';
+      showToast(`Akun Verifikator untuk ${nama} berhasil dibuat.`);
+      loadAdminExtras();
+    } else {
+      showToast('Gagal membuat akun. Coba lagi.');
+    }
+  }
+  window.submitNewVerifikator = submitNewVerifikator;
+
+  async function resetVerifikatorKode(id){
+    const acc = verifikatorAccounts.find(a => a.id === id);
+    const newKode = prompt(`Masukkan kode akses baru untuk ${acc ? acc.nama : 'akun ini'}:`, '');
+    if(!newKode || !newKode.trim()) return;
+    const result = await apiPost({ action:'resetVerifikatorKode', id, kode: newKode.trim() });
+    if(result && result.ok){
+      showToast('Kode akses berhasil diperbarui.');
+      loadAdminExtras();
+    } else {
+      showToast('Gagal memperbarui kode akses. Coba lagi.');
+    }
+  }
+  window.resetVerifikatorKode = resetVerifikatorKode;
+
+  async function toggleVerifikatorStatus(id, currentStatus){
+    const newStatus = currentStatus === 'nonaktif' ? 'aktif' : 'nonaktif';
+    const result = await apiPost({ action:'toggleVerifikatorStatus', id, status:newStatus });
+    if(result && result.ok){
+      showToast(newStatus === 'nonaktif' ? 'Akun dinonaktifkan.' : 'Akun diaktifkan kembali.');
+      loadAdminExtras();
+    } else {
+      showToast('Gagal mengubah status akun. Coba lagi.');
+    }
+  }
+  window.toggleVerifikatorStatus = toggleVerifikatorStatus;
 
   function renderPending(){
     const canVerify = currentRole === 'verifikator' || currentRole === 'admin';
@@ -1075,8 +1312,17 @@
 
   // ---------- realtime-ish polling (only once app is visible) ----------
   loadAll();
-  setInterval(() => { if(hasEnteredApp) loadAll(); }, 6000);
-  document.addEventListener('visibilitychange', () => { if(!document.hidden && hasEnteredApp) loadAll(); });
+  setInterval(() => {
+    if(!hasEnteredApp) return;
+    loadAll();
+    if(currentRole === 'admin') loadAdminExtras();
+  }, 6000);
+  document.addEventListener('visibilitychange', () => {
+    if(!document.hidden && hasEnteredApp){
+      loadAll();
+      if(currentRole === 'admin') loadAdminExtras();
+    }
+  });
 </script>
 </body>
 </html>
