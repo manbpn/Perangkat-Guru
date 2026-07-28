@@ -464,6 +464,11 @@
         <h3>Formulir Guru</h3>
         <p class="sub">Semua kolom wajib diisi sebelum menyimpan.</p>
 
+        <div class="note amber" id="revise-banner" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5m0 3h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.6"/></svg>
+          <span>Sedang merevisi data <b id="revise-banner-name">-</b>. Perbaiki isian di bawah lalu klik "Simpan Revisi".</span>
+        </div>
+
         <form id="guru-form" novalidate>
           <div class="field" id="f-nama">
             <label for="nama">Nama Guru</label>
@@ -496,6 +501,9 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
             Kirim untuk Diverifikasi
           </button>
+          <button type="button" class="cta-ghost" id="cancel-revise-btn" style="display:none; width:100%; justify-content:center; margin-top:10px;" onclick="cancelRevise()">
+            Batal Revisi
+          </button>
         </form>
 
         <div class="note amber">
@@ -519,6 +527,22 @@
         </div>
         <div class="roster" id="roster"></div>
       </div>
+    </div>
+
+    <div class="card" style="margin-top:24px;">
+      <h3>Cek &amp; Revisi Data Saya</h3>
+      <p class="sub">Masukkan NIP yang Anda gunakan saat mengirim data, untuk melihat status pengiriman dan merevisi bila diperlukan.</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+        <div class="field" style="flex:1; min-width:220px; margin-bottom:0;">
+          <label for="check-nip">NIP</label>
+          <input id="check-nip" type="text" inputmode="numeric" placeholder="Masukkan NIP Anda" class="mono">
+        </div>
+        <button class="export-btn" style="margin-bottom:1px;" onclick="checkMyData()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm10 2-4.35-4.35" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Cek Status Pengiriman
+        </button>
+      </div>
+      <div id="my-data-result" style="margin-top:18px;"></div>
     </div>
   </div>
 </section>
@@ -1231,6 +1255,13 @@
             ${statusOf(g)==='rejected' ? 'Ditolak' : 'Disetujui'} oleh ${escapeHtml(g.verifiedBy || '-')}
             ${g.rejectReason ? ' — Alasan: ' + escapeHtml(g.rejectReason) : ''}
           </div>
+          ${statusOf(g)==='rejected' ? `
+          <div class="g-actions">
+            <button class="btn-approve" onclick="handleApprove('${g.id}')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Setujui Sekarang
+            </button>
+          </div>` : ''}
         </div>
       `).join('');
     }
@@ -1313,6 +1344,84 @@
     return ok;
   }
 
+  // ---------- Cek & Revisi Data Saya (Guru) ----------
+  let editingId = null;
+
+  async function checkMyData(){
+    const nip = document.getElementById('check-nip').value.trim();
+    const resultEl = document.getElementById('my-data-result');
+    if(!nip){ showToast('Masukkan NIP terlebih dahulu.'); return; }
+
+    resultEl.innerHTML = `<div class="empty">Mencari data...</div>`;
+    const data = await apiGet();
+    if(data === null){
+      resultEl.innerHTML = `<div class="empty">Gagal memuat data dari server. Coba lagi.</div>`;
+      return;
+    }
+    allGuru = data;
+    render(); renderPending();
+
+    const mine = allGuru.filter(g => (g.nip || '').toString().trim() === nip);
+    if(mine.length === 0){
+      resultEl.innerHTML = `<div class="empty">Tidak ditemukan data dengan NIP tersebut.</div>`;
+      return;
+    }
+
+    resultEl.innerHTML = mine.map(g => {
+      const st = statusOf(g);
+      const canRevise = st === 'pending' || st === 'rejected';
+      const statusText = st === 'pending' ? 'Menunggu Verifikasi' : st === 'rejected' ? 'Ditolak' : 'Terverifikasi';
+      return `
+        <div class="g-item ${st === 'rejected' ? 'rejected' : st === 'pending' ? 'pending' : ''}">
+          <div class="g-top">
+            <div class="g-name">${escapeHtml(g.nama)}</div>
+            <span class="status-tag ${st}">${statusText}</span>
+          </div>
+          <div class="g-meta"><span><b>Mapel:</b> ${escapeHtml(g.mapel)}</span></div>
+          ${g.rejectReason ? `<div class="verinfo">Alasan ditolak: ${escapeHtml(g.rejectReason)}</div>` : ''}
+          ${canRevise
+            ? `<div class="g-actions"><button class="btn-approve" onclick="startRevise('${g.id}')">Revisi Data Ini</button></div>`
+            : `<div class="verinfo">Data sudah terverifikasi dan tampil publik. Hubungi Admin bila perlu diubah.</div>`}
+        </div>
+      `;
+    }).join('');
+  }
+  window.checkMyData = checkMyData;
+
+  function startRevise(id){
+    const g = allGuru.find(x => x.id === id);
+    if(!g) return;
+    editingId = id;
+    document.getElementById('nama').value = g.nama;
+    document.getElementById('nip').value = g.nip;
+    document.getElementById('jabatan').value = g.jabatan;
+    document.getElementById('mapel').value = g.mapel;
+    document.getElementById('link').value = g.link;
+
+    document.getElementById('revise-banner-name').textContent = g.nama;
+    document.getElementById('revise-banner').style.display = 'flex';
+    document.getElementById('cancel-revise-btn').style.display = 'flex';
+    document.getElementById('submit-btn').innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
+      Simpan Revisi`;
+
+    document.getElementById('guru-form').scrollIntoView({ behavior:'smooth', block:'start' });
+    showToast('Form diisi otomatis. Perbaiki lalu klik "Simpan Revisi".');
+  }
+  window.startRevise = startRevise;
+
+  function cancelRevise(){
+    editingId = null;
+    document.getElementById('guru-form').reset();
+    document.getElementById('revise-banner').style.display = 'none';
+    document.getElementById('cancel-revise-btn').style.display = 'none';
+    document.getElementById('submit-btn').innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
+      Kirim untuk Diverifikasi`;
+    clearErrors();
+  }
+  window.cancelRevise = cancelRevise;
+
   document.getElementById('guru-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     clearErrors();
@@ -1327,6 +1436,32 @@
 
     const btn = document.getElementById('submit-btn');
     btn.disabled = true;
+
+    if(editingId){
+      const id = editingId;
+      try{
+        const result = await apiPost({
+          action:'update', id, ...values,
+          status:'pending', verifiedBy:'', verifiedAt:'', rejectReason:''
+        });
+        if(result && result.ok){
+          const idx = allGuru.findIndex(g => g.id === id);
+          if(idx >= 0) allGuru[idx] = { ...allGuru[idx], ...values, status:'pending', verifiedBy:'', verifiedAt:'', rejectReason:'' };
+          render(); renderPending();
+          showToast('Revisi terkirim. Menunggu verifikasi ulang.');
+          cancelRevise();
+        } else {
+          showToast('Gagal menyimpan revisi ke server. Coba lagi.');
+        }
+      }catch(err){
+        showToast('Gagal menyimpan revisi. Coba lagi.');
+        console.error(err);
+      }finally{
+        btn.disabled = false;
+      }
+      return;
+    }
+
     const id = 'g' + Date.now() + Math.random().toString(36).slice(2,7);
     const record = { id, ...values, status:'pending', createdAt: new Date().toISOString() };
 
