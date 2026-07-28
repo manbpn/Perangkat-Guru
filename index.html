@@ -1021,7 +1021,7 @@
 
   function csvEscape(val){
     const s = String(val ?? '');
-    if(/[",\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+    if(/[";\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
     return s;
   }
   function statusLabel(s){ return s==='pending' ? 'Menunggu Verifikasi' : s==='rejected' ? 'Ditolak' : 'Terverifikasi'; }
@@ -1038,7 +1038,9 @@
           statusLabel(statusOf(g)), g.createdAt || '', g.verifiedBy || '', g.verifiedAt || '', g.rejectReason || ''
         ]);
       });
-    const csv = rows.map(r => r.map(csvEscape).join(',')).join('\r\n');
+    // "sep=;" di baris pertama + pemisah titik koma, supaya Excel/WPS versi region Indonesia
+    // (yang menganggap koma sebagai desimal) membuka file ini langsung terpisah rapi per kolom.
+    const csv = 'sep=;\r\n' + rows.map(r => r.map(csvEscape).join(';')).join('\r\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
