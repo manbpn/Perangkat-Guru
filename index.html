@@ -126,6 +126,13 @@
     display:inline-block; margin-left:6px; background:var(--amber); color:#fff;
     font-size:10.5px; font-weight:700; padding:1.5px 6px; border-radius:999px;
   }
+  .navlink-doc{
+    display:inline-flex; align-items:center; gap:6px; text-decoration:none;
+    font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:14.5px;
+    color: var(--ink-soft); padding:9px 16px; border-radius:999px; white-space:nowrap;
+    transition: color .2s ease, background .2s ease;
+  }
+  .navlink-doc:hover{ color:var(--primary-dark); background: var(--primary-tint); }
 
   .role-chip{
     display:flex; align-items:center; gap:8px; border:1px solid var(--line); background:#fff;
@@ -230,7 +237,7 @@
       -webkit-overflow-scrolling:touch; scrollbar-width:none;
     }
     .navlinks::-webkit-scrollbar{ display:none; }
-    .navlinks button{ white-space:nowrap; flex:0 0 auto; }
+    .navlinks button, .navlinks .navlink-doc{ white-space:nowrap; flex:0 0 auto; }
     .session-info{
       width:100%; flex:1 1 100%; justify-content:space-between; margin-left:0; padding-left:0;
       border-left:none; border-top:1px solid var(--line); padding-top:10px;
@@ -405,6 +412,10 @@
       <button id="nav-perangkat" onclick="showView('perangkat')">Perangkat Guru</button>
       <button id="nav-verifikasi" onclick="showView('verifikasi')" style="display:none;">Verifikasi<span class="badge-count" id="pending-badge" style="display:none;">0</span></button>
       <button id="nav-akun" onclick="showView('akun')" style="display:none;">Kelola Akun</button>
+      <a href="panduan-penggunaan.pdf" target="_blank" rel="noopener noreferrer" class="navlink-doc">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        Panduan
+      </a>
     </div>
     <div class="session-info">
       <span class="session-role" id="session-role">Guru</span>
