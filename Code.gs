@@ -18,9 +18,16 @@
 const SHEET_GURU = 'Data';
 const SHEET_VERIFIKATOR = 'Verifikator';
 const SHEET_LOGIN = 'LoginLog';
+const UPLOAD_FOLDER_NAME = 'Berkas Ruang Guru MAN Balikpapan';
 
 function sheet_(name) {
   return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
+}
+
+function getUploadFolder_() {
+  const folders = DriveApp.getFoldersByName(UPLOAD_FOLDER_NAME);
+  if (folders.hasNext()) return folders.next();
+  return DriveApp.createFolder(UPLOAD_FOLDER_NAME);
 }
 
 function rowsToObjects_(sheet) {
@@ -116,6 +123,21 @@ function doPost(e) {
     if (row > 0) {
       sheet.getRange(row, 4).setValue(body.status || 'aktif');
       sheet.getRange(row, 6).setValue(new Date().toISOString());
+    }
+
+  } else if (action === 'uploadFile') {
+    try {
+      const fileName = (body.fileName || ('berkas_' + Date.now())).toString();
+      const mimeType = body.mimeType || 'application/octet-stream';
+      const base64Data = body.fileData || '';
+      const bytes = Utilities.base64Decode(base64Data);
+      const blob = Utilities.newBlob(bytes, mimeType, fileName);
+      const folder = getUploadFolder_();
+      const file = folder.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      result = { ok: true, url: file.getUrl(), fileId: file.getId(), fileName: file.getName() };
+    } catch (err) {
+      result = { ok: false, error: 'Gagal mengunggah file: ' + err.message };
     }
 
   } else {

@@ -229,6 +229,33 @@
   .field .err-msg{ font-size:11.5px; color:var(--red); margin-top:5px; display:none; }
   .field.error .err-msg{ display:block; }
 
+  .or-divider{
+    display:flex; align-items:center; gap:10px; margin:14px 0;
+    color:var(--ink-soft); font-size:11px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;
+  }
+  .or-divider::before, .or-divider::after{ content:''; flex:1; height:1px; background:var(--line); }
+
+  .file-drop{
+    border:1.5px dashed var(--line); border-radius:10px; padding:14px 16px;
+    background:var(--bg-alt); cursor:pointer; display:flex; align-items:center; gap:10px;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .file-drop:hover{ border-color:var(--primary); background:var(--primary-tint); }
+  .file-drop svg{ flex:0 0 auto; color:var(--primary-dark); }
+  .file-drop .file-drop-text{ font-size:13px; color:var(--ink-soft); }
+  .file-drop .file-drop-text b{ color:var(--primary-dark); }
+  .file-picked{
+    display:none; align-items:center; justify-content:space-between; gap:10px; margin-top:8px;
+    padding:9px 12px; border-radius:8px; background:var(--primary-tint); font-size:12.5px; color:var(--primary-dark);
+  }
+  .file-picked.show{ display:flex; }
+  .file-picked .file-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .file-picked button{
+    background:none; border:none; color:var(--red); font-weight:700; cursor:pointer; font-size:12px; flex:0 0 auto;
+  }
+  .upload-progress{ font-size:11.5px; color:var(--ink-soft); margin-top:6px; display:none; }
+  .upload-progress.show{ display:block; }
+
   .submit-btn{
     width:100%; margin-top:6px; padding:13px 20px; border:none; border-radius:10px;
     background: var(--primary); color:#fff; font-weight:700; font-size:14.5px; cursor:pointer;
@@ -510,7 +537,24 @@
             <label for="link">Upload Berkas (tautan Drive / Website)</label>
             <input id="link" type="url" placeholder="https://drive.google.com/... atau https://...">
             <div class="hint">Tempelkan tautan Google Drive atau situs pribadi berisi perangkat pembelajaran.</div>
-            <div class="err-msg">Masukkan tautan yang valid (diawali http:// atau https://).</div>
+            <div class="err-msg">Masukkan tautan yang valid, atau unggah dokumen asli di bawah ini.</div>
+          </div>
+
+          <div class="or-divider">Atau</div>
+
+          <div class="field" id="f-file">
+            <label for="file-input">Unggah Dokumen Asli</label>
+            <div class="file-drop" onclick="document.getElementById('file-input').click()">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 15V4m0 0L7 9m5-5 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="file-drop-text"><b>Klik untuk pilih file</b> — PDF, Word, atau PowerPoint (maks. 10 MB)</span>
+            </div>
+            <input id="file-input" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx" style="display:none;">
+            <div class="file-picked" id="file-picked">
+              <span class="file-name" id="file-picked-name"></span>
+              <button type="button" onclick="clearPickedFile()">Hapus</button>
+            </div>
+            <div class="hint">File akan otomatis tersimpan ke Google Drive sistem dan tautannya terpasang otomatis. Anda tidak perlu upload manual ke Drive.</div>
+            <div class="upload-progress" id="upload-progress">Mengunggah berkas...</div>
           </div>
 
           <button type="submit" class="submit-btn" id="submit-btn">
@@ -1072,16 +1116,92 @@
 
   document.getElementById('search-input').addEventListener('input', render);
 
+  // ---------- unggah dokumen asli ----------
+  let pickedFile = null;
+  const MAX_FILE_MB = 10;
+  const ALLOWED_EXT = ['pdf','doc','docx','ppt','pptx'];
+  const fileInputEl = document.getElementById('file-input');
+  const filePickedEl = document.getElementById('file-picked');
+  const filePickedNameEl = document.getElementById('file-picked-name');
+  const linkInputEl = document.getElementById('link');
+  const uploadProgressEl = document.getElementById('upload-progress');
+
+  fileInputEl.addEventListener('change', () => {
+    const file = fileInputEl.files && fileInputEl.files[0];
+    if(!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if(!ALLOWED_EXT.includes(ext)){
+      showToast('Format file tidak didukung. Gunakan PDF, Word, atau PowerPoint.');
+      fileInputEl.value = '';
+      return;
+    }
+    if(file.size > MAX_FILE_MB * 1024 * 1024){
+      showToast(`Ukuran file maksimal ${MAX_FILE_MB} MB.`);
+      fileInputEl.value = '';
+      return;
+    }
+    pickedFile = file;
+    filePickedNameEl.textContent = `${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`;
+    filePickedEl.classList.add('show');
+    document.getElementById('f-file').classList.remove('error');
+    // saling eksklusif dengan tautan manual
+    linkInputEl.value = '';
+    document.getElementById('f-link').classList.remove('error');
+  });
+
+  function clearPickedFile(){
+    pickedFile = null;
+    fileInputEl.value = '';
+    filePickedEl.classList.remove('show');
+  }
+  window.clearPickedFile = clearPickedFile;
+
+  linkInputEl.addEventListener('input', () => {
+    if(pickedFile && linkInputEl.value.trim()) clearPickedFile();
+  });
+
+  function fileToBase64_(file){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function uploadPickedFileIfAny_(){
+    if(!pickedFile) return null;
+    uploadProgressEl.classList.add('show');
+    try{
+      const base64 = await fileToBase64_(pickedFile);
+      const result = await apiPost({
+        action: 'uploadFile',
+        fileName: pickedFile.name,
+        mimeType: pickedFile.type || 'application/octet-stream',
+        fileData: base64
+      });
+      if(result && result.ok && result.url) return result.url;
+      throw new Error((result && result.error) || 'Upload gagal');
+    } finally {
+      uploadProgressEl.classList.remove('show');
+    }
+  }
+
   // ---------- form ----------
   const fields = ['nama','nip','jabatan','mapel','link'];
-  function clearErrors(){ fields.forEach(f => document.getElementById('f-'+f).classList.remove('error')); }
+  function clearErrors(){ fields.forEach(f => document.getElementById('f-'+f).classList.remove('error')); document.getElementById('f-file').classList.remove('error'); }
   function validate(values){
     let ok = true;
     if(!values.nama) { document.getElementById('f-nama').classList.add('error'); ok = false; }
     if(!values.nip) { document.getElementById('f-nip').classList.add('error'); ok = false; }
     if(!values.jabatan) { document.getElementById('f-jabatan').classList.add('error'); ok = false; }
     if(!values.mapel) { document.getElementById('f-mapel').classList.add('error'); ok = false; }
-    if(!values.link || !/^(https?:\/\/)?[^\s]+\.[^\s]+/i.test(values.link)) { document.getElementById('f-link').classList.add('error'); ok = false; }
+    const linkValid = values.link && /^(https?:\/\/)?[^\s]+\.[^\s]+/i.test(values.link);
+    if(!pickedFile && !linkValid) {
+      document.getElementById('f-link').classList.add('error');
+      document.getElementById('f-file').classList.add('error');
+      ok = false;
+    }
     return ok;
   }
 
@@ -1134,6 +1254,7 @@
     document.getElementById('jabatan').value = g.jabatan || '';
     document.getElementById('mapel').value = g.mapel || '';
     document.getElementById('link').value = g.link || '';
+    clearPickedFile();
     document.getElementById('revise-banner').style.display = 'flex';
     document.getElementById('submit-btn-label').textContent = 'Simpan Revisi';
     document.getElementById('guru-form').scrollIntoView({ behavior:'smooth', block:'start' });
@@ -1144,6 +1265,7 @@
   function cancelRevise(){
     revisingId = null;
     document.getElementById('guru-form').reset();
+    clearPickedFile();
     clearErrors();
     document.getElementById('revise-banner').style.display = 'none';
     document.getElementById('submit-btn-label').textContent = 'Kirim untuk Diverifikasi';
@@ -1166,6 +1288,18 @@
     btn.disabled = true;
 
     try{
+      // jika guru memilih file asli, unggah dulu ke Drive sistem lalu pakai tautannya
+      if(pickedFile){
+        try{
+          values.link = await uploadPickedFileIfAny_();
+        }catch(uploadErr){
+          showToast('Gagal mengunggah berkas. Silakan coba lagi.');
+          console.error(uploadErr);
+          btn.disabled = false;
+          return;
+        }
+      }
+
       if(revisingId){
         // ---- mode revisi: perbarui data lama, kembalikan status ke pending ----
         const id = revisingId;
@@ -1195,6 +1329,7 @@
           allGuru.push(record);
           render(); renderPending();
           document.getElementById('guru-form').reset();
+          clearPickedFile();
           showToast('Data terkirim. Menunggu verifikasi Verifikator.');
         } else {
           showToast('Gagal menyimpan data ke server. Silakan coba lagi.');
