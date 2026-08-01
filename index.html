@@ -98,6 +98,17 @@
 
   .navright{ display:flex; align-items:center; gap:8px; }
   .navlinks{ display:flex; gap:6px; }
+  .nav-role-btn{
+    display:flex; align-items:center; gap:7px;
+    padding:8px 14px; border-radius:999px;
+    background:#fff; border:1.3px solid var(--line);
+    color:var(--ink); font-weight:700; font-size:12.5px; cursor:pointer;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .nav-role-btn:hover{ border-color:var(--primary); background:var(--primary-tint); }
+  .nav-role-btn .dot{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
+  .nav-role-btn svg{ transition: transform .2s ease; flex:0 0 auto; }
+  .nav-role-btn.open svg{ transform: rotate(180deg); }
   .navlinks button{
     border:none; background:transparent; cursor:pointer;
     font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:14.5px;
@@ -425,6 +436,11 @@
       <button id="nav-perangkat" onclick="showView('perangkat')">Perangkat Guru</button>
       <button id="nav-verifikasi" onclick="showView('verifikasi')" style="display:none;">Verifikasi<span class="badge-count" id="pending-badge" style="display:none;">0</span></button>
     </div>
+    <button class="nav-role-btn" id="nav-role-trigger" onclick="toggleRoleDropdown(event,'nav')">
+      <span class="dot" id="nav-role-dot" style="background:#8B8B7A;"></span>
+      <span id="nav-role-label">Guru</span>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
   </div>
 </nav>
 
@@ -701,12 +717,14 @@
     dd.classList.add('show');
     positionDropdown(evt.currentTarget);
     if(source === 'gate') document.getElementById('gate-trigger').classList.add('open');
+    if(source === 'nav') document.getElementById('nav-role-trigger').classList.add('open');
   }
   window.toggleRoleDropdown = toggleRoleDropdown;
 
   function closeRoleDropdown(){
     document.getElementById('role-dropdown').classList.remove('show');
     document.getElementById('gate-trigger').classList.remove('open');
+    document.getElementById('nav-role-trigger').classList.remove('open');
     dropdownSource = null;
   }
 
@@ -787,6 +805,7 @@
     if(!dd.classList.contains('show')) return;
     if(dd.contains(e.target)) return;
     if(e.target.closest('#gate-trigger')) return;
+    if(e.target.closest('#nav-role-trigger')) return;
     closeRoleDropdown();
   });
   document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeRoleDropdown(); });
@@ -797,12 +816,16 @@
     }
   });
 
+  const ROLE_DOT_COLOR = { guru:'#8B8B7A', verifikator:'#A8721E', admin:'#0F5C4A' };
+
   function applyRoleUI(){
     const canVerify = currentRole === 'verifikator' || currentRole === 'admin';
     document.getElementById('nav-verifikasi').style.display = canVerify ? '' : 'none';
     if(!canVerify && document.getElementById('view-verifikasi').classList.contains('active')){
       showView('perangkat');
     }
+    document.getElementById('nav-role-label').textContent = roleDisplayName(currentRole);
+    document.getElementById('nav-role-dot').style.background = ROLE_DOT_COLOR[currentRole] || ROLE_DOT_COLOR.guru;
     render();
     renderPending();
   }
