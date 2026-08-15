@@ -83,21 +83,24 @@
   /* ---------- Nav ---------- */
   .navbar{
     position: sticky; top:0; z-index:40;
-    display:flex; align-items:center; justify-content:space-between; gap:14px;
-    padding: 14px 32px;
-    background: rgba(250,248,242,0.9);
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding: 12px 20px;
+    background: rgba(250,248,242,0.94);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--line);
-    flex-wrap:wrap;
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    scrollbar-width:none;
   }
-  .brand{ display:flex; align-items:center; gap:12px; cursor:pointer; }
+  .navbar::-webkit-scrollbar{ display:none; }
+  .brand{ display:flex; align-items:center; gap:12px; cursor:pointer; flex:0 0 auto; }
   .emblem{ width:38px; height:38px; flex:0 0 auto; object-fit:contain; }
-  .brand-text{ line-height:1.1; }
+  .brand-text{ line-height:1.1; white-space:nowrap; }
   .brand-text .eyebrow{ font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color: var(--gold); font-weight:600; }
   .brand-text .title{ font-size:16.5px; font-weight:700; color:var(--primary-dark); }
 
-  .navright{ display:flex; align-items:center; gap:8px; }
-  .navlinks{ display:flex; gap:6px; }
+  .navright{ display:flex; align-items:center; gap:8px; flex:0 0 auto; }
+  .navlinks{ display:flex; gap:6px; flex:0 0 auto; }
   .nav-role-btn{
     display:flex; align-items:center; gap:7px;
     padding:8px 14px; border-radius:999px;
@@ -111,10 +114,10 @@
   .nav-role-btn.open svg{ transform: rotate(180deg); }
   .navlinks button{
     border:none; background:transparent; cursor:pointer;
-    font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:14.5px;
-    color: var(--ink-soft); padding:9px 16px; border-radius:999px;
+    font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:13.5px;
+    color: var(--ink-soft); padding:8px 12px; border-radius:999px;
     position:relative; transition: color .2s ease, background .2s ease;
-    white-space:nowrap;
+    white-space:nowrap; flex:0 0 auto;
   }
   .navlinks button:hover{ color:var(--primary-dark); }
   .navlinks button.active{ color:var(--primary-dark); background: var(--primary-tint); }
@@ -222,6 +225,16 @@
   .pg-grid{ display:grid; grid-template-columns: 1fr 1.15fr; gap:28px; align-items:start; }
   .col-stack{ display:flex; flex-direction:column; gap:28px; }
   @media (max-width: 880px){ .pg-grid{ grid-template-columns:1fr; } .info-strip{ grid-template-columns:1fr; } .navbar{ justify-content:flex-start; } }
+  @media (max-width: 600px){
+    .navbar{ padding:10px 14px; gap:8px; }
+    .emblem{ width:30px; height:30px; }
+    .brand-text .eyebrow{ font-size:9px; letter-spacing:0.10em; }
+    .brand-text .title{ font-size:13.5px; }
+    .navlinks button{ padding:7px 10px; font-size:12.5px; }
+    .navlinks button .badge-count{ margin-left:4px; padding:1px 5px; font-size:10px; }
+    .nav-role-btn{ padding:7px 10px; font-size:11px; gap:5px; }
+    .navright{ gap:6px; }
+  }
 
   .card{ background: var(--bg-card); border:1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 28px 26px; }
   .card h3{ margin:0 0 4px; font-size:18px; color:var(--primary-dark); }
@@ -383,12 +396,18 @@
   .rd-opt .dot{ width:9px; height:9px; border-radius:50%; margin-top:5px; flex:0 0 auto; }
   .rd-opt .rt{ font-weight:700; font-size:13.5px; color:var(--ink); }
   .rd-opt .rdd{ font-size:11.5px; color:var(--ink-soft); margin-top:1px; line-height:1.4; }
-  .rd-divider{ height:1px; background:var(--line); margin:4px 8px; }
-  .rd-code{ padding:10px 10px 6px; }
-  .rd-code .field{ margin-bottom:10px; }
-  .rd-code .field label{ font-size:11.5px; }
-  .rd-code .field input{ padding:9px 11px; font-size:13px; }
-  .rd-err{ font-size:11.5px; color:var(--red); margin:-2px 0 8px; display:none; }
+  .rd-divider{ height:1px; background:var(--line); margin:10px 8px 14px; }
+  .rd-code{ padding:12px 10px 8px; }
+  .rd-code .field{ margin-bottom:16px; }
+  .rd-code .field label{ font-size:11.5px; margin-bottom:7px; }
+  .rd-code .field input{
+    padding:11px 12px; font-size:13.5px;
+    border:1.5px solid var(--line); background:#fff;
+  }
+  .rd-code .field input:focus{
+    border-color:var(--primary); box-shadow: 0 0 0 3px var(--primary-tint);
+  }
+  .rd-err{ font-size:11.5px; color:var(--red); margin:2px 0 10px; display:none; }
   .rd-err.show{ display:block; }
   .rd-submit{
     width:100%; border:none; border-radius:9px; background: var(--primary); color:#fff;
