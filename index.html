@@ -916,6 +916,10 @@
     return s || 'verified'; // backward-compatible: empty/old records default to verified
   }
 
+  function canViewFiles(){
+    return currentRole === 'verifikator' || currentRole === 'admin';
+  }
+
   function render(){
     renderBerandaPreview();
     const q = document.getElementById('search-input').value.trim().toLowerCase();
@@ -947,10 +951,10 @@
             <span><b>NIP:</b> ${escapeHtml(g.nip)}</span>
             <span><b>Mapel:</b> ${escapeHtml(g.mapel)}</span>
           </div>
-          <a class="g-link" href="${escapeHtml(normalizeLink(g.link))}" target="_blank" rel="noopener noreferrer">
+          ${canViewFiles() ? `<a class="g-link" href="${escapeHtml(normalizeLink(g.link))}" target="_blank" rel="noopener noreferrer">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 15l6-6M9 9h6v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Lihat berkas perangkat pembelajaran
-          </a>
+          </a>` : ''}
           ${g.verifiedBy ? `<div class="verinfo">Diverifikasi oleh ${escapeHtml(g.verifiedBy)}</div>` : ''}
         </div>
       `).join('');
@@ -979,10 +983,10 @@
           <div class="g-jabatan">${escapeHtml(g.jabatan)}</div>
         </div>
         <div class="g-meta"><span><b>Mapel:</b> ${escapeHtml(g.mapel)}</span></div>
-        <a class="g-link" href="${escapeHtml(normalizeLink(g.link))}" target="_blank" rel="noopener noreferrer">
+        ${canViewFiles() ? `<a class="g-link" href="${escapeHtml(normalizeLink(g.link))}" target="_blank" rel="noopener noreferrer">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 15l6-6M9 9h6v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           Lihat berkas
-        </a>
+        </a>` : ''}
       </div>
     `).join('');
   }
@@ -1085,6 +1089,10 @@
           <div class="g-meta">
             <span><b>Mapel:</b> ${escapeHtml(g.mapel)}</span>
           </div>
+          ${g.link ? `<a class="g-link" href="${escapeHtml(normalizeLink(g.link))}" target="_blank" rel="noopener noreferrer">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 15l6-6M9 9h6v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Lihat berkas
+          </a>` : ''}
           <div class="verinfo">
             ${statusOf(g)==='rejected' ? 'Ditolak' : 'Disetujui'} oleh ${escapeHtml(g.verifiedBy || '-')}
             ${g.rejectReason ? ' — Alasan: ' + escapeHtml(g.rejectReason) : ''}
