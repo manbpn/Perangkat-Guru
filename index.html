@@ -349,11 +349,13 @@
     color:var(--primary); font-weight:600; text-decoration:none; border-bottom:1px solid transparent;
   }
   .g-item a.g-link:hover{ border-color: var(--primary); }
+  .g-item .g-del-row{ text-align:right; margin-bottom:8px; }
   .g-item .g-del{
-    position:absolute; top:12px; right:14px; background:none; border:none; cursor:pointer;
-    color:var(--red); opacity:0; transition:opacity .15s ease; font-size:12px;
+    background:#fff; border:1px solid rgba(179,65,58,0.35);
+    border-radius:7px; padding:4px 10px; cursor:pointer;
+    color:var(--red); font-weight:700; font-size:11.5px; transition:background .15s ease;
   }
-  .g-item:hover .g-del{ opacity:0.85; }
+  .g-item .g-del:hover{ background: var(--red-tint); }
   .g-item .verinfo{ margin-top:8px; font-size:11.5px; color:var(--ink-soft); font-style:italic; }
 
   .g-actions{ display:flex; gap:8px; margin-top:12px; }
@@ -942,7 +944,7 @@
       .slice().reverse()
       .map(g => `
         <div class="g-item" data-id="${g.id}">
-          ${currentRole === 'admin' ? `<button class="g-del" onclick="handleDelete('${g.id}')" aria-label="Hapus data">Hapus</button>` : ''}
+          ${currentRole === 'admin' ? `<div class="g-del-row"><button class="g-del" onclick="handleDelete('${g.id}')" aria-label="Hapus data">Hapus</button></div>` : ''}
           <div class="g-top">
             <div class="g-name">${escapeHtml(g.nama)}</div>
             <div class="g-jabatan">${escapeHtml(g.jabatan)}</div>
@@ -1081,7 +1083,8 @@
       hr.innerHTML = `<div class="empty">Belum ada riwayat verifikasi.</div>`;
     } else {
       hr.innerHTML = history.map(g => `
-        <div class="g-item ${statusOf(g)==='rejected' ? 'rejected' : ''}">
+        <div class="g-item ${statusOf(g)==='rejected' ? 'rejected' : ''}" data-id="${g.id}">
+          ${currentRole === 'admin' ? `<div class="g-del-row"><button class="g-del" onclick="handleDelete('${g.id}')" aria-label="Hapus data">Hapus</button></div>` : ''}
           <div class="g-top">
             <div class="g-name">${escapeHtml(g.nama)}</div>
             <span class="status-tag ${statusOf(g)}">${statusOf(g)==='rejected' ? 'Ditolak' : 'Disetujui'}</span>
@@ -1105,6 +1108,7 @@
   async function handleDelete(id){
     allGuru = allGuru.filter(g => g.id !== id);
     render();
+    renderPending();
     const result = await apiPost({ action: 'delete', id });
     if(result && result.ok){
       showToast('Data guru dihapus.');
