@@ -368,6 +368,10 @@
   .btn-approve:hover{ filter:brightness(1.08); }
   .btn-reject{ background:#fff; color:var(--red); border:1px solid rgba(179,65,58,0.35) !important; }
   .btn-reject:hover{ background: var(--red-tint); }
+  .g-actions.history{ margin-top:10px; }
+  .g-actions.history button{ padding:7px 10px; font-size:12px; }
+  .btn-neutral{ background:#fff; color:var(--ink-soft); border:1px solid var(--line) !important; }
+  .btn-neutral:hover{ background:var(--bg-alt); }
 
   .empty{ text-align:center; padding: 36px 16px; color: var(--ink-soft); font-size:13.5px; }
   .empty svg{ width:34px; height:34px; margin-bottom:10px; opacity:0.5; }
@@ -1100,6 +1104,12 @@
             ${statusOf(g)==='rejected' ? 'Ditolak' : 'Disetujui'} oleh ${escapeHtml(g.verifiedBy || '-')}
             ${g.rejectReason ? ' — Alasan: ' + escapeHtml(g.rejectReason) : ''}
           </div>
+          <div class="g-actions history">
+            ${statusOf(g)==='verified'
+              ? `<button class="btn-reject" onclick="handleReject('${g.id}')">Tolak (batalkan persetujuan)</button>`
+              : `<button class="btn-approve" onclick="handleApprove('${g.id}')">Setujui</button>
+                 <button class="btn-neutral" onclick="handleRequeue('${g.id}')">Kembalikan ke antrean</button>`}
+          </div>
         </div>
       `).join('');
     }
@@ -1155,6 +1165,22 @@
     }
   }
   window.handleReject = handleReject;
+
+  async function handleRequeue(id){
+    const g = allGuru.find(x => x.id === id);
+    if(!g) return;
+    g.status = 'pending';
+    g.verifiedBy = ''; g.verifiedAt = ''; g.rejectReason = '';
+    renderPending(); render();
+    const result = await apiPost({ action:'update', id, status:'pending', verifiedBy:'', verifiedAt:'', rejectReason:'' });
+    if(result && result.ok){
+      showToast(`Data ${g.nama} dikembalikan ke antrean verifikasi.`);
+    } else {
+      showToast('Gagal menyimpan ke server. Coba lagi.');
+      loadAll();
+    }
+  }
+  window.handleRequeue = handleRequeue;
 
   async function loadAll(){
     const data = await apiGet();
